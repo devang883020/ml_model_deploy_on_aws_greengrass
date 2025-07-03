@@ -1,0 +1,15 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      docker: 20
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - docker login -u $DOCKER_USER -p $DOCKER_PASS
+      - docker buildx create --use
+      - docker buildx build --platform linux/arm64 -t $DOCKER_USER/iris-ml:latest .
+      - docker push $DOCKER_USER/iris-ml:latest
+      - aws greengrassv2 create-component-version \
+          --inline-recipe fileb://recipe.yaml
+
