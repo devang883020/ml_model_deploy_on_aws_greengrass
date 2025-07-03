@@ -8,7 +8,7 @@ Manifests:
   - Platform:
       os: linux
     Artifacts:
-      - URI: docker:<your_dockerhub_username>/iris-ml:latest
+      - URI: docker:devangkubde88/iris-ml:latest
     Lifecycle:
-      Run: docker run --rm <your_dockerhub_username>/iris-ml:latest
+      Run: docker run --rm devangkubde88/iris-ml:latest
 
