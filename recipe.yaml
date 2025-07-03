@@ -1,0 +1,14 @@
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: com.devang.IrisML
+ComponentVersion: '1.0.0'
+ComponentType: aws.greengrass.generic
+ComponentDescription: Simple Iris ML inference example
+Manifests:
+  - Platform:
+      os: linux
+    Artifacts:
+      - URI: docker:<your_dockerhub_username>/iris-ml:latest
+    Lifecycle:
+      Run: docker run --rm <your_dockerhub_username>/iris-ml:latest
+
