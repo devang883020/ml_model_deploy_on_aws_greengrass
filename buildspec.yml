@@ -24,12 +24,24 @@ phases:
       - docker buildx create --use || true
       - docker buildx inspect --bootstrap
 
-  build:
+    build:
     commands:
+      - echo "🔧 Installing QEMU emulators for ARM..."
       - docker run --rm --privileged tonistiigi/binfmt --install all
-      - export COMPONENT_VER=latest
-      - echo "Building Docker image for ARM and pushing to Docker Hub..."
-      - docker buildx build --platform linux/arm/v7 -t $DOCKER_USER/iris-ml:$COMPONENT_VER --push .
+
+      - echo "📦 Setting component version..."
+      - COMPONENT_VER=latest
+      - IMAGE_NAME=$DOCKER_USER/iris-ml:$COMPONENT_VER
+
+      - echo "🐳 Building Docker image for ARM (tag: $IMAGE_NAME)"
+      - docker buildx create --use || true
+      - docker buildx inspect --bootstrap
+
+      - docker buildx build \
+          --platform linux/arm/v7 \
+          --tag $IMAGE_NAME \
+          --push .
+
 
 
   post_build:
