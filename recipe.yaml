@@ -1,29 +1,73 @@
-RecipeFormatVersion: '2020-01-25'
-ComponentName: com.devangkubde.irisml
-ComponentVersion: 1.0.0
-ComponentDescription: ML Iris model docker container
-ComponentPublisher: Devang Kubde
-ComponentType: aws.greengrass.generic
+version: 0.2
 
-Manifests:
-  - Platform:
-      os: linux
-      architecture: armv7l
-    Artifacts:
-      - URI: docker:devangkubde88/iris-ml
-    Lifecycle:
-      install: |-
-        echo "✅ No installation needed"
-      run: |-
-        echo "🚀 Pulling and running Docker container"
-        docker pull devangkubde88/iris-ml
-        docker run --rm \
-          --name iris-ml-inference \
-          --network host \
-          devangkubde88/iris-ml
-      shutdown: |-
-        echo "🛑 Attempting to stop container..."
-        docker stop iris-ml-inference || true
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+    commands:
+      - echo "Installing AWS CLI..."
+      - pip install awscli
 
-    Permissions:
-      - Docker: true
+  pre_build:
+    commands:
+      - echo "Getting Greengrass info from SSM..."
+      - REGION=ap-south-1
+      - ACCOUNT_ID=$(aws ssm get-parameter --name /gg/accountid --query 'Parameter.Value' --output text)
+      - CORE_THING_NAME=$(aws ssm get-parameter --name /gg/corethingname --query 'Parameter.Value' --output text)
+      - COMPONENT_VER=1.0.$CODEBUILD_BUILD_NUMBER
+      - COMPONENT_NAME=com.devangkubde.irisml
+      - IMAGE_TAG=$DOCKER_USER/iris-ml:$COMPONENT_VER
+      - echo "Building and tagging Docker image..."
+      - docker build -t $IMAGE_TAG .
+      - docker tag $IMAGE_TAG devangkubde88/iris-ml
+      - echo "Pushing Docker image to Docker Hub..."
+      - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD
+      - docker push $IMAGE_TAG
+      - docker push devangkubde88/iris-ml
+
+  build:
+    commands:
+      - echo "Generating recipe.yaml..."
+      - |
+        cat <<EOF > recipe.yaml
+        RecipeFormatVersion: '2020-01-25'
+        ComponentName: $COMPONENT_NAME
+        ComponentVersion: $COMPONENT_VER
+        ComponentDescription: ML Iris model docker container
+        ComponentPublisher: Devang Kubde
+        ComponentType: aws.greengrass.generic
+        Manifests:
+          - Platform:
+              os: linux
+              architecture: armv7l
+            Artifacts:
+              - URI: docker:devangkubde88/iris-ml
+            Lifecycle:
+              install: |-
+                echo "✅ No installation needed"
+              run: |-
+                echo "🚀 Pulling and running Docker container"
+                docker pull devangkubde88/iris-ml
+                docker run --rm \
+                  --name iris-ml-inference \
+                  --network host \
+                  devangkubde88/iris-ml
+              shutdown: |-
+                echo "🛑 Stopping container..."
+                docker stop iris-ml-inference || true
+            Permissions:
+              - Docker: true
+        EOF
+
+      - echo "Publishing component to Greengrass..."
+      - aws greengrassv2 create-component-version \
+          --inline-recipe fileb://recipe.yaml \
+          --region $REGION
+
+      - echo "Deploying component to Raspberry Pi..."
+      - COMPONENTS_JSON="{\"$COMPONENT_NAME\": {\"componentVersion\": \"$COMPONENT_VER\"}}"
+      - aws greengrassv2 create-deployment \
+          --target-arn arn:aws:iot:$REGION:$ACCOUNT_ID:thing/$CORE_THING_NAME \
+          --components "$COMPONENTS_JSON" \
+          --deployment-policies failureHandlingPolicy=ROLLBACK \
+          --region $REGION
