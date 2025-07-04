@@ -4,10 +4,14 @@ phases:
   pre_build:
     commands:
       - echo Logging into Docker Hub...
-      - echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+      - echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin
   build:
     commands:
-      - echo Setting up Docker Buildx...
-      - docker buildx create --use
-      - docker buildx build --platform linux/arm64 -t $DOCKER_USER/iris-ml:latest --push .
+      - echo Building Docker image...
+      - docker build -t iris-model .
+      - echo Build completed on `date`
+  post_build:
+    commands:
+      - echo Build process finished.
+
 
