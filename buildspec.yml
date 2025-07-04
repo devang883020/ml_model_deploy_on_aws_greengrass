@@ -44,19 +44,21 @@ phases:
 
 
 
-  post_build:
+    post_build:
     commands:
       - echo "Getting Greengrass core info from SSM..."
       - ACCOUNT_ID=$(aws ssm get-parameter --name /gg/accountid --query 'Parameter.Value' --output text)
       - CORE_THING_NAME=$(aws ssm get-parameter --name /gg/corethingname --query 'Parameter.Value' --output text)
+      - COMPONENT_VER=1.0.$CODEBUILD_BUILD_NUMBER
+      - COMPONENT_NAME=com.devangkubde.irisml
+      - IMAGE_TAG=$DOCKER_USER/iris-ml:$COMPONENT_VER
 
-      - echo "Creating Greengrass component recipe..."
+      - echo "Generating valid recipe.yaml..."
       - |
-        cat > recipe.yaml <<EOF
-        ---
+        echo "\
         RecipeFormatVersion: '2020-01-25'
-        ComponentName: ${COMPONENT_NAME}
-        ComponentVersion: ${COMPONENT_VER}
+        ComponentName: $COMPONENT_NAME
+        ComponentVersion: $COMPONENT_VER
         ComponentType: aws.greengrass.generic
         ComponentDescription: ML Iris model docker container
         ComponentPublisher: Devang Kubde
@@ -65,27 +67,21 @@ phases:
               os: linux
               architecture: armv7l
             Lifecycle:
-              Run: docker run --rm $DOCKER_USER/iris-ml:${COMPONENT_VER}
-        EOF
+              Run: docker run --rm $IMAGE_TAG
+        " > recipe.yaml
 
       - echo "Publishing component to Greengrass..."
       - aws greengrassv2 create-component-version --inline-recipe fileb://recipe.yaml --region $REGION
 
       - echo "Deploying component to Raspberry Pi..."
       - |
-        COMPONENTS_JSON=$(cat <<EOF
-        {
-          "$COMPONENT_NAME": {
-            "componentVersion": "$COMPONENT_VER"
-          }
-        }
-        EOF
-        )
+        COMPONENTS_JSON="{\"$COMPONENT_NAME\": {\"componentVersion\": \"$COMPONENT_VER\"}}"
         aws greengrassv2 create-deployment \
           --target-arn arn:aws:iot:$REGION:$ACCOUNT_ID:thing/$CORE_THING_NAME \
           --components "$COMPONENTS_JSON" \
           --deployment-policies failureHandlingPolicy=ROLLBACK \
           --region $REGION
+
 
 
 
