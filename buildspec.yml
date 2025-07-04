@@ -24,14 +24,15 @@ phases:
       - docker buildx create --use || true
       - docker buildx inspect --bootstrap
 
-  build:
+    build:
     commands:
+      - docker run --rm --privileged tonistiigi/binfmt --install all
       - export COMPONENT_VER=1.0.$CODEBUILD_BUILD_NUMBER
       - echo "Building Docker image for ARM and pushing to Docker Hub..."
       - docker buildx build --platform linux/arm/v7 -t $DOCKER_USER/iris-ml:$COMPONENT_VER --push .
-      - echo "Docker image pushed as $DOCKER_USER/iris-ml:$COMPONENT_VER"
 
-  post_build:
+
+    post_build:
     commands:
       - echo "Getting Greengrass core info from SSM..."
       - ACCOUNT_ID=$(aws ssm get-parameter --name /gg/accountid --query 'Parameter.Value' --output text)
@@ -60,15 +61,20 @@ phases:
 
       - echo "Deploying component to Raspberry Pi..."
       - |
+        COMPONENTS_JSON=$(cat <<EOF
+{
+  "$COMPONENT_NAME": {
+    "componentVersion": "$COMPONENT_VER"
+  }
+}
+EOF
+)
         aws greengrassv2 create-deployment \
           --target-arn arn:aws:iot:$REGION:$ACCOUNT_ID:thing/$CORE_THING_NAME \
-          --components "{\\"$COMPONENT_NAME\\": {\\"componentVersion\\": \\"$COMPONENT_VER\\"}}" \
+          --components "$COMPONENTS_JSON" \
           --deployment-policies failureHandlingPolicy=ROLLBACK \
           --region $REGION
 
-artifacts:
-  files:
-    - '**/*'
 
 
 
